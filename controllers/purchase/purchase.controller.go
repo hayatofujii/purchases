@@ -1,7 +1,10 @@
 package purchaseController
 
 import (
+	"fmt"
+	"math"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -12,9 +15,9 @@ import (
 
 type purchaseService interface {
 	CreateID() string
-	RegisterPurchase(string, string, string, float32) *utils.HTTPError
-	GetPurchase(string) (*purchaseModel.Purchase, *utils.HTTPError)
-	GetConvertedPurchase(string, string) (*purchaseModel.ConvertedPurchase, *utils.HTTPError)
+	GetPurchase(string) (bool, *purchaseModel.PurchaseSerial)
+	RegisterPurchase(string, string, string, float32) (*bool, *utils.HTTPError)
+	GetConvertedPurchase(string, string) (bool, *purchaseModel.ConvertedPurchaseSerial, *utils.HTTPError)
 }
 
 type PurchaseController struct {
@@ -43,7 +46,7 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 
 	var req struct {
 		Description string  `json:"description"`
-		Amount      float32 `json:"amount"`
+		Value       float32 `json:"value"`
 		Date        string  `json:"date"`
 	}
 
@@ -63,7 +66,7 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 		return
 	}
 
-	he := c.purchaseService.RegisterPurchase(id, req.Description, req.Date, req.Amount)
+	registered, he := c.purchaseService.RegisterPurchase(id, req.Description, req.Date, req.Value)
 	if he != nil {
 		ctx.Error(he)
 		ctx.AbortWithStatusJSON(he.StatusCode, gin.H{
@@ -72,37 +75,72 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 		return
 	}
 
-	ctx.IndentedJSON(http.StatusCreated, gin.H{
-		"status": "ok",
-	})
+	if !*registered {
+		ctx.IndentedJSON(http.StatusNoContent, gin.H{})
+		return
+	}
+
+	ctx.IndentedJSON(http.StatusNoContent, gin.H{})
+}
+
+func roundFloat(val float64, precision uint) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
 }
 
 func (c *PurchaseController) GetPurchase(ctx *gin.Context) {
 
 	id := ctx.Params.ByName("id")
 
-	queryParams := ctx.Request.URL.Query()
-
 	// let's get the first currency for the time being
-	currency := queryParams["currency"][0]
-
-	var p any
-	var e *utils.HTTPError
+	currency := ctx.Query("currency")
 
 	if currency != "" {
-		p, e = c.purchaseService.GetConvertedPurchase(id, currency)
-	} else {
-		p, e = c.purchaseService.GetPurchase(id)
-	}
+		exists, p, e := c.purchaseService.GetConvertedPurchase(id, currency)
 
-	if e != nil {
-		ctx.Error(e)
-		ctx.AbortWithStatusJSON(e.StatusCode, gin.H{
-			"error": e.Error(),
+		if e != nil {
+			ctx.Error(e)
+			ctx.AbortWithStatusJSON(e.StatusCode, gin.H{
+				"error": e.Error(),
+			})
+			return
+		}
+
+		if !exists {
+			e := fmt.Errorf("not found")
+			ctx.Error(e)
+			ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{})
+			return
+		}
+
+		ctx.IndentedJSON(http.StatusOK, gin.H{
+			"id":          p.ID,
+			"value":       roundFloat(float64(p.Value), 2),
+			"description": p.Description,
+			"date":        p.Date.Format(time.DateOnly),
+
+			"converted_value:": roundFloat(float64(p.ConvertedValue), 2),
+			"currency":         p.Currency,
+			"rate":             p.Rate,
+			"rate_date":        p.RateDate.Format(time.DateOnly),
 		})
-		return
-	}
 
-	ctx.IndentedJSON(http.StatusCreated, p)
+	} else {
+		exists, p := c.purchaseService.GetPurchase(id)
+
+		if !exists {
+			e := fmt.Errorf("not found")
+			ctx.Error(e)
+			ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{})
+			return
+		}
+
+		ctx.IndentedJSON(http.StatusOK, gin.H{
+			"id":          p.ID,
+			"value":       roundFloat(float64(p.Value), 2),
+			"description": p.Description,
+			"date":        p.Date.Format(time.DateOnly),
+		})
+	}
 
 }
