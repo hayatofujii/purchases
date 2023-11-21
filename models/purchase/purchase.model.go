@@ -5,37 +5,36 @@ import (
 )
 
 type Purchase struct {
-	description string
-	date        time.Time
+	Description string    `json:"description"`
+	Date        time.Time `json:"date"`
 
 	// big.Rat?
-	value float32
+	Value float32 `json:"value"`
 }
 
 func NewPurchase(_desc string, _date time.Time, _val float32) Purchase {
 	return Purchase{
-		description: _desc,
-		date:        _date,
-		value:       _val,
+		Description: _desc,
+		Date:        _date,
+		Value:       _val,
 	}
-}
-
-func (a *Purchase) Description() string {
-	return a.description
-}
-
-func (p *Purchase) Date() time.Time {
-	return p.date
-}
-
-func (p *Purchase) Value() float32 {
-	return p.value
 }
 
 type ConvertedPurchase struct {
 	Purchase
 
-	ConvertedValue float32
-	Currency       string
-	RateDate       time.Time
+	ConvertedValue float32   `json:"converted_value"`
+	Currency       string    `json:"currency"`
+	Rate           float32   `json:"rate"`
+	RateDate       time.Time `json:"rate_date"`
+}
+
+type PurchaseSerial struct {
+	Purchase
+	ID string `json:"id"`
+}
+
+type ConvertedPurchaseSerial struct {
+	ConvertedPurchase
+	ID string `json:"id"`
 }
