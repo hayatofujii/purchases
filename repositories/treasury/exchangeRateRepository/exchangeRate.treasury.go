@@ -85,7 +85,7 @@ func (r ExchangeRateFEDRepository) GetBestExchangeRate(currency string, date tim
 	if len(resParse.Data) == 0 {
 		return nil, &utils.HTTPError{
 			StatusCode: http.StatusNotFound,
-			Err:        fmt.Errorf("converstion exchange for currency not found"),
+			Err:        fmt.Errorf("exchange rate for requested currency not found"),
 		}
 	}
 
