@@ -24,6 +24,7 @@ func main() {
 	defer httpClient.CloseIdleConnections()
 
 	purchaseRepository := purchaseRepository.NewPurchaseFileRepository(PURCHASES_FILENAME)
+	defer purchaseRepository.Close()
 	exchangeRepository := exchangeRepository.NewExchangeRateTreasuryRepository(httpClient)
 
 	services := services.NewServices(purchaseRepository, exchangeRepository)

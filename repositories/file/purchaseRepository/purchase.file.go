@@ -2,21 +2,15 @@ package purchaseFileRepository
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/http"
+	"io"
 	"os"
-	"time"
 
 	model "haf.systems/purchases/models/purchase"
-
-	"haf.systems/purchases/utils"
 )
 
 type purchaseJsonEntity struct {
-	Id          string    `json:"id"`
-	Description string    `json:"description"`
-	Date        time.Time `json:"date"`
-	Value       float32   `json:"value"`
+	model.Purchase
+	Id string `json:"id"`
 }
 
 func (p purchaseJsonEntity) ToPurchase() model.Purchase {
@@ -25,20 +19,19 @@ func (p purchaseJsonEntity) ToPurchase() model.Purchase {
 
 func fromPurchase(id string, p model.Purchase) purchaseJsonEntity {
 	return purchaseJsonEntity{
-		Id:          id,
-		Description: p.Description(),
-		Date:        p.Date(),
-		Value:       p.Value(),
+		Id:       id,
+		Purchase: p,
 	}
 }
 
 type PurchaseFileRepository struct {
-	filename  string
+	file      *os.File
 	purchases map[string]model.Purchase
 }
 
-func loadFromFile(filename string) (*map[string]model.Purchase, error) {
-	fileBytes, err := os.ReadFile(filename)
+func loadFromFile(file *os.File) (*map[string]model.Purchase, error) {
+
+	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +51,13 @@ func loadFromFile(filename string) (*map[string]model.Purchase, error) {
 }
 
 func NewPurchaseFileRepository(_filename string) *PurchaseFileRepository {
+	file, err := os.OpenFile(_filename, os.O_CREATE|os.O_RDWR, 0644)
 
-	p, e := loadFromFile(_filename)
+	if err != nil {
+		panic(err)
+	}
+
+	p, e := loadFromFile(file)
 
 	if e != nil {
 		println(e)
@@ -70,58 +68,57 @@ func NewPurchaseFileRepository(_filename string) *PurchaseFileRepository {
 
 	return &PurchaseFileRepository{
 		purchases: *p,
-		filename:  _filename,
+		file:      file,
 	}
 }
 
-func (repo PurchaseFileRepository) GetPurchase(id string) (*model.Purchase, *utils.HTTPError) {
+func (repo PurchaseFileRepository) GetPurchase(id string) (bool, *model.Purchase) {
 	if p, exists := repo.purchases[id]; exists {
-		return &p, nil
+		return true, &p
 	}
 
-	return nil, &utils.HTTPError{
-		StatusCode: http.StatusNotFound,
-		Err:        fmt.Errorf("not found"),
-	}
+	return false, nil
 }
 
-func (repo PurchaseFileRepository) RecordPurchase(id string, p model.Purchase) error {
+func (repo PurchaseFileRepository) RecordPurchase(id string, p model.Purchase) (bool, error) {
 	// check if already recorded
-	// if yes, error out
-	if _, exists := repo.purchases[id]; exists {
-		return utils.HTTPError{
-			StatusCode: http.StatusUnprocessableEntity,
-			Err:        fmt.Errorf("entry already exists"),
-		}
+	if exists, _ := repo.GetPurchase(id); exists {
+		return false, nil
 	}
 
-	// lets try to append the file first, then adding to the map
-	toRecord := fromPurchase(id, p)
-
-	newBytes, err := json.Marshal(toRecord)
-	if err != nil {
-		return utils.HTTPError{
-			StatusCode: http.StatusInternalServerError,
-			Err:        err,
-		}
-	}
-
-	file, err := os.OpenFile(repo.filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	_, err = file.Write(newBytes)
-	if err != nil {
-		return utils.HTTPError{
-			StatusCode: http.StatusInternalServerError,
-			Err:        err,
-		}
-	}
-
-	// finally adding to the map
 	repo.purchases[id] = p
 
+	err := repo.writeout()
+
+	if err != nil {
+		delete(repo.purchases, id)
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (repo PurchaseFileRepository) writeout() error {
+	array := make([]purchaseJsonEntity, 0, len(repo.purchases))
+
+	for i, e := range repo.purchases {
+		array = append(array, fromPurchase(i, e))
+	}
+
+	newBytes, err := json.Marshal(array)
+	if err != nil {
+		return err
+	}
+
+	_, err = repo.file.Write(newBytes)
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (repo PurchaseFileRepository) Close() error {
+
+	return repo.file.Close()
 }
