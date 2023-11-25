@@ -64,43 +64,29 @@ func (p *PurchaseService) RegisterPurchase(id string, description string, date s
 	return &retExist, nil
 }
 
-func (ps *PurchaseService) GetPurchase(id string) (bool, *purchaseModel.PurchaseSerial) {
+func (ps *PurchaseService) GetPurchase(id string) (bool, *purchaseModel.Purchase) {
 	e, p := ps.purchaseRepository.GetPurchase(id)
 
 	if !e {
 		return e, nil
 	}
 
-	return e, &purchaseModel.PurchaseSerial{
-		ID:       id,
-		Purchase: *p,
-	}
+	return e, p
 }
 
-func (ps *PurchaseService) GetConvertedPurchase(id string, currency string) (bool, *purchaseModel.ConvertedPurchaseSerial, *utils.HTTPError) {
-
-	ok, p := ps.purchaseRepository.GetPurchase(id)
-
-	if !ok {
-		return false, nil, nil
-	}
-
+func (ps *PurchaseService) ConvertPurchase(p *purchaseModel.Purchase, currency string) (*purchaseModel.ConvertedPurchase, *utils.HTTPError) {
 	rate, exchangeErr := ps.exchangeRateRepository.GetBestExchangeRate(currency, p.Date)
 	if exchangeErr != nil {
-		return true, nil, exchangeErr
+		return nil, exchangeErr
 	}
 
 	mul := new(big.Rat)
 	mul = mul.Mul(p.Value, rate.ExchangeRate)
 
-	return ok, &purchaseModel.ConvertedPurchaseSerial{
-		ConvertedPurchase: purchaseModel.ConvertedPurchase{
-			Purchase:       *p,
-			ConvertedValue: mul,
-			Currency:       rate.Currency,
-			Rate:           rate.ExchangeRate,
-			RateDate:       rate.Date,
-		},
-		ID: id,
+	return &purchaseModel.ConvertedPurchase{
+		ConvertedValue: mul,
+		Currency:       rate.Currency,
+		Rate:           rate.ExchangeRate,
+		RateDate:       rate.Date,
 	}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,9 +16,9 @@ import (
 
 type purchaseService interface {
 	CreateID() string
-	GetPurchase(string) (bool, *purchaseModel.PurchaseSerial)
+	GetPurchase(string) (bool, *purchaseModel.Purchase)
 	RegisterPurchase(string, string, string, string) (*bool, *utils.HTTPError)
-	GetConvertedPurchase(string, string) (bool, *purchaseModel.ConvertedPurchaseSerial, *utils.HTTPError)
+	ConvertPurchase(*purchaseModel.Purchase, string) (*purchaseModel.ConvertedPurchase, *utils.HTTPError)
 }
 
 type PurchaseController struct {
@@ -87,61 +88,55 @@ func (c *PurchaseController) GetPurchase(ctx *gin.Context) {
 
 	id := ctx.Params.ByName("id")
 
-	// let's get the first currency for the time being
+	exists, p := c.purchaseService.GetPurchase(id)
+
+	if !exists {
+		e := fmt.Errorf("not found")
+		ctx.Error(e)
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	v, _ := strconv.ParseFloat(p.Value.FloatString(2), 64)
+	response := gin.H{
+		"id":          id,
+		"value":       v,
+		"description": p.Description,
+		"date":        p.Date.Format(time.DateOnly),
+	}
+
 	currency := ctx.Query("currency")
 
 	if currency != "" {
-		exists, p, e := c.purchaseService.GetConvertedPurchase(id, currency)
+		convertions := map[string]gin.H{}
 
-		if e != nil {
-			ctx.Error(e)
-			ctx.AbortWithStatusJSON(e.StatusCode, gin.H{
-				"error": e.Error(),
-			})
-			return
+		currencies := strings.Split(currency, ",")
+
+		for _, e := range currencies {
+			if e != "" {
+				conv, convErr := c.purchaseService.ConvertPurchase(p, e)
+
+				if convErr != nil {
+					convertions[e] = gin.H{
+						"error": convErr.Error(),
+					}
+				} else {
+					cv, _ := strconv.ParseFloat(conv.ConvertedValue.FloatString(2), 64)
+					r, _ := strconv.ParseFloat(conv.Rate.FloatString(2), 64)
+
+					convertions[e] = gin.H{
+						"currency":        conv.Currency,
+						"converted_value": cv,
+						"rate":            r,
+						"rate_date":       conv.RateDate.Format(time.DateOnly),
+					}
+				}
+			}
 		}
 
-		if !exists {
-			e := fmt.Errorf("not found")
-			ctx.Error(e)
-			ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{})
-			return
-		}
-
-		v, _ := strconv.ParseFloat(p.Value.FloatString(2), 64)
-		cv, _ := strconv.ParseFloat(p.ConvertedValue.FloatString(2), 64)
-		r, _ := strconv.ParseFloat(p.Rate.FloatString(2), 64)
-
-		ctx.IndentedJSON(http.StatusOK, gin.H{
-			"id":          p.ID,
-			"value":       v,
-			"description": p.Description,
-			"date":        p.Date.Format(time.DateOnly),
-
-			"converted_value:": cv,
-			"currency":         p.Currency,
-			"rate":             r,
-			"rate_date":        p.RateDate.Format(time.DateOnly),
-		})
-
-	} else {
-		exists, p := c.purchaseService.GetPurchase(id)
-
-		if !exists {
-			e := fmt.Errorf("not found")
-			ctx.Error(e)
-			ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{})
-			return
-		}
-
-		v, _ := strconv.ParseFloat(p.Value.FloatString(2), 64)
-
-		ctx.IndentedJSON(http.StatusOK, gin.H{
-			"id":          p.ID,
-			"value":       v,
-			"description": p.Description,
-			"date":        p.Date.Format(time.DateOnly),
-		})
+		response["convertions"] = convertions
 	}
+
+	ctx.IndentedJSON(http.StatusOK, response)
 
 }

@@ -34,25 +34,8 @@ type PurchaseSerial struct {
 }
 
 type ConvertedPurchase struct {
-	Purchase
-
 	ConvertedValue *big.Rat
 	Currency       string
 	Rate           *big.Rat
 	RateDate       time.Time
-}
-
-func (p ConvertedPurchase) ConvertedValueFloat() float32 {
-	f, _ := p.ConvertedValue.Float32()
-	return f
-}
-
-func (p ConvertedPurchase) RateFloat() float32 {
-	f, _ := p.ConvertedValue.Float32()
-	return f
-}
-
-type ConvertedPurchaseSerial struct {
-	ConvertedPurchase
-	ID string `json:"id"`
 }
