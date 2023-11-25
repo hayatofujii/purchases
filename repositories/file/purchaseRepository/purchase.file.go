@@ -14,7 +14,7 @@ type purchaseJsonEntity struct {
 }
 
 func (p purchaseJsonEntity) ToPurchase() model.Purchase {
-	return model.NewPurchase(p.Description, p.Date, p.Value)
+	return p.Purchase
 }
 
 func fromPurchase(id string, p model.Purchase) purchaseJsonEntity {
