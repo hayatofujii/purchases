@@ -2,8 +2,8 @@ package purchaseController
 
 import (
 	"fmt"
-	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,7 +16,7 @@ import (
 type purchaseService interface {
 	CreateID() string
 	GetPurchase(string) (bool, *purchaseModel.PurchaseSerial)
-	RegisterPurchase(string, string, string, float32) (*bool, *utils.HTTPError)
+	RegisterPurchase(string, string, string, string) (*bool, *utils.HTTPError)
 	GetConvertedPurchase(string, string) (bool, *purchaseModel.ConvertedPurchaseSerial, *utils.HTTPError)
 }
 
@@ -45,9 +45,9 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 	id := ctx.Params.ByName("id")
 
 	var req struct {
-		Description string  `json:"description"`
-		Value       float32 `json:"value"`
-		Date        string  `json:"date"`
+		Description string `json:"description"`
+		Value       string `json:"value"`
+		Date        string `json:"date"`
 	}
 
 	e := ctx.BindJSON(&req)
@@ -83,11 +83,6 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusNoContent, gin.H{})
 }
 
-func roundFloat(val float64, precision uint) float64 {
-	ratio := math.Pow(10, float64(precision))
-	return math.Round(val*ratio) / ratio
-}
-
 func (c *PurchaseController) GetPurchase(ctx *gin.Context) {
 
 	id := ctx.Params.ByName("id")
@@ -113,15 +108,19 @@ func (c *PurchaseController) GetPurchase(ctx *gin.Context) {
 			return
 		}
 
+		v, _ := strconv.ParseFloat(p.Value.FloatString(2), 64)
+		cv, _ := strconv.ParseFloat(p.ConvertedValue.FloatString(2), 64)
+		r, _ := strconv.ParseFloat(p.Rate.FloatString(2), 64)
+
 		ctx.IndentedJSON(http.StatusOK, gin.H{
 			"id":          p.ID,
-			"value":       roundFloat(float64(p.Value), 2),
+			"value":       v,
 			"description": p.Description,
 			"date":        p.Date.Format(time.DateOnly),
 
-			"converted_value:": roundFloat(float64(p.ConvertedValue), 2),
+			"converted_value:": cv,
 			"currency":         p.Currency,
-			"rate":             p.Rate,
+			"rate":             r,
 			"rate_date":        p.RateDate.Format(time.DateOnly),
 		})
 
@@ -135,9 +134,11 @@ func (c *PurchaseController) GetPurchase(ctx *gin.Context) {
 			return
 		}
 
+		v, _ := strconv.ParseFloat(p.Value.FloatString(2), 64)
+
 		ctx.IndentedJSON(http.StatusOK, gin.H{
 			"id":          p.ID,
-			"value":       roundFloat(float64(p.Value), 2),
+			"value":       v,
 			"description": p.Description,
 			"date":        p.Date.Format(time.DateOnly),
 		})

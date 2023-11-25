@@ -2,6 +2,7 @@ package purchaseService
 
 import (
 	"fmt"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -38,7 +39,7 @@ func (p *PurchaseService) CreateID() string {
 	return uuid.New().String()
 }
 
-func (p *PurchaseService) RegisterPurchase(id string, description string, date string, value float32) (*bool, *utils.HTTPError) {
+func (p *PurchaseService) RegisterPurchase(id string, description string, date string, value string) (*bool, *utils.HTTPError) {
 
 	parsedDate, err := time.Parse(time.DateOnly, date)
 	if err != nil {
@@ -93,14 +94,13 @@ func (ps *PurchaseService) GetConvertedPurchase(id string, currency string) (boo
 		return true, nil, exchangeErr
 	}
 
+	mul := new(big.Rat)
+	mul = mul.Mul(p.Value, rate.ExchangeRate)
+
 	return ok, &purchaseModel.ConvertedPurchaseSerial{
 		ConvertedPurchase: purchaseModel.ConvertedPurchase{
-			Purchase: purchaseModel.Purchase{
-				Description: p.Description,
-				Date:        p.Date,
-				Value:       p.Value,
-			},
-			ConvertedValue: p.Value * rate.ExchangeRate,
+			Purchase:       *p,
+			ConvertedValue: mul,
 			Currency:       rate.Currency,
 			Rate:           rate.ExchangeRate,
 			RateDate:       rate.Date,

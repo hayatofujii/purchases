@@ -1,9 +1,12 @@
 package exchangeRateDataModel
 
-import "time"
+import (
+	"math/big"
+	"time"
+)
 
 type ExchangeRateData struct {
-	ExchangeRate float32
+	ExchangeRate *big.Rat
 	Date         time.Time
 	Currency     string
 }

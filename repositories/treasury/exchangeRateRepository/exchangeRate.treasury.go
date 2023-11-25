@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
-	"strconv"
 	"time"
 
 	exchangeRateData "haf.systems/purchases/models/exchange_rate"
@@ -89,8 +89,10 @@ func (r ExchangeRateFEDRepository) GetBestExchangeRate(currency string, date tim
 		}
 	}
 
-	exRate, err := strconv.ParseFloat(resParse.Data[0].ExchangeRate, 32)
-	if err != nil {
+	exRate := new(big.Rat)
+	_, ratConvertOk := exRate.SetString(resParse.Data[0].ExchangeRate)
+
+	if !ratConvertOk {
 		return nil, &utils.HTTPError{
 			StatusCode: http.StatusInternalServerError,
 			Err:        fmt.Errorf("could not parse upstream data: " + err.Error()),
@@ -106,7 +108,7 @@ func (r ExchangeRateFEDRepository) GetBestExchangeRate(currency string, date tim
 	}
 
 	return &exchangeRateData.ExchangeRateData{
-		ExchangeRate: float32(exRate),
+		ExchangeRate: exRate,
 		Date:         date,
 		Currency:     resParse.Data[0].Currency,
 	}, nil
