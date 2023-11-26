@@ -29,7 +29,7 @@ type PurchaseFileRepository struct {
 	purchases map[string]model.Purchase
 }
 
-func loadFromFile(file *os.File) (*map[string]model.Purchase, error) {
+func loadFromFile(file *os.File) (map[string]model.Purchase, error) {
 
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
@@ -47,7 +47,7 @@ func loadFromFile(file *os.File) (*map[string]model.Purchase, error) {
 		mapped[e.Id] = e.ToPurchase()
 	}
 
-	return &mapped, nil
+	return mapped, nil
 }
 
 func NewPurchaseFileRepository(_filename string) *PurchaseFileRepository {
@@ -62,12 +62,11 @@ func NewPurchaseFileRepository(_filename string) *PurchaseFileRepository {
 	if e != nil {
 		println(e)
 
-		pm := make(map[string]model.Purchase)
-		p = &pm
+		p = make(map[string]model.Purchase)
 	}
 
 	return &PurchaseFileRepository{
-		purchases: *p,
+		purchases: p,
 		file:      file,
 	}
 }
@@ -88,34 +87,50 @@ func (repo PurchaseFileRepository) RecordPurchase(id string, p model.Purchase) (
 		return false, nil
 	}
 
-	repo.purchases[id] = p
-
-	err := repo.writeout()
-
+	err := repo.append(id, p)
 	if err != nil {
 		delete(repo.purchases, id)
 		return false, err
 	}
 
+	repo.purchases[id] = p
+
 	return true, nil
 }
 
-func (repo PurchaseFileRepository) writeout() error {
-	array := make([]purchaseJsonEntity, 0, len(repo.purchases))
+func (repo PurchaseFileRepository) append(id string, p model.Purchase) error {
 
-	for i, e := range repo.purchases {
-		array = append(array, fromPurchase(i, e))
+	// file startup
+	if len(repo.purchases) == 0 {
+		_, err := repo.file.Write([]byte{'[', ']'})
+
+		if err != nil {
+			return err
+		}
 	}
 
-	newBytes, err := json.Marshal(array)
+	// set file pointer to just before final ']'
+	_, err := repo.file.Seek(-1, 2)
 	if err != nil {
 		return err
 	}
 
-	_, err = repo.file.Seek(0, 0)
+	// write a ',' if there's anything already
+	if len(repo.purchases) > 0 {
+		_, err := repo.file.Write([]byte{','})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	newBytes, err := json.Marshal(fromPurchase(id, p))
 	if err != nil {
 		return err
 	}
+
+	// file finisher
+	newBytes = append(newBytes, []byte{']'}...)
 
 	_, err = repo.file.Write(newBytes)
 	if err != nil {
