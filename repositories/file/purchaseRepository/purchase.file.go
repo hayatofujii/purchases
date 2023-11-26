@@ -110,6 +110,11 @@ func (repo PurchaseFileRepository) writeout() error {
 		return err
 	}
 
+	_, err = repo.file.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+
 	_, err = repo.file.Write(newBytes)
 	if err != nil {
 		return err
