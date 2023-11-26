@@ -50,7 +50,7 @@ func (p *PurchaseService) RegisterPurchase(id string, description string, date s
 	}
 
 	purchase := purchaseModel.NewPurchase(description, parsedDate, value)
-	ok, err := p.purchaseRepository.RecordPurchase(id, purchase)
+	registered, err := p.purchaseRepository.RecordPurchase(id, purchase)
 
 	if err != nil {
 		return nil, &utils.HTTPError{
@@ -59,11 +59,7 @@ func (p *PurchaseService) RegisterPurchase(id string, description string, date s
 		}
 	}
 
-	retExist := true
-
-	if !ok {
-		return &retExist, nil
-	}
+	retExist := !registered
 
 	return &retExist, nil
 }

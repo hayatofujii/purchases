@@ -80,6 +80,8 @@ func (repo PurchaseFileRepository) GetPurchase(id string) (bool, *model.Purchase
 	return false, nil
 }
 
+// Returns (true, nil) if purchase was recorded into file; (false, nil) if there's already an entry for it;
+// (false, !nil) if it's not written into file due to some error.
 func (repo PurchaseFileRepository) RecordPurchase(id string, p model.Purchase) (bool, error) {
 	// check if already recorded
 	if exists, _ := repo.GetPurchase(id); exists {

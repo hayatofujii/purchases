@@ -66,7 +66,7 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 		return
 	}
 
-	registered, he := c.purchaseService.RegisterPurchase(id, req.Description, req.Date, fmt.Sprint(req.Value))
+	alreadyRegistered, he := c.purchaseService.RegisterPurchase(id, req.Description, req.Date, fmt.Sprint(req.Value))
 	if he != nil {
 		ctx.Error(he)
 		ctx.AbortWithStatusJSON(he.StatusCode, gin.H{
@@ -75,12 +75,12 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 		return
 	}
 
-	if !*registered {
-		ctx.IndentedJSON(http.StatusNoContent, gin.H{})
+	if *alreadyRegistered {
+		ctx.AbortWithStatus(http.StatusUnprocessableEntity)
 		return
 	}
 
-	ctx.IndentedJSON(http.StatusNoContent, gin.H{})
+	ctx.Status(http.StatusNoContent)
 }
 
 func (c *PurchaseController) GetPurchase(ctx *gin.Context) {
