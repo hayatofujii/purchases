@@ -45,9 +45,9 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 	id := ctx.Params.ByName("id")
 
 	var req struct {
-		Description string `json:"description"`
-		Value       string `json:"value"`
-		Date        string `json:"date"`
+		Description string  `json:"description"`
+		Value       float32 `json:"value"`
+		Date        string  `json:"date"`
 	}
 
 	e := ctx.BindJSON(&req)
@@ -66,7 +66,7 @@ func (c *PurchaseController) RegisterPurchase(ctx *gin.Context) {
 		return
 	}
 
-	registered, he := c.purchaseService.RegisterPurchase(id, req.Description, req.Date, req.Value)
+	registered, he := c.purchaseService.RegisterPurchase(id, req.Description, req.Date, fmt.Sprint(req.Value))
 	if he != nil {
 		ctx.Error(he)
 		ctx.AbortWithStatusJSON(he.StatusCode, gin.H{
